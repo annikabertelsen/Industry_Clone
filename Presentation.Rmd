@@ -1,0 +1,213 @@
+---
+#title: "GSB 503 Industry Project"
+#author: "Max Sohl"
+#subtitle: 'Modeling Group 3: SPP'
+output: ioslides_presentation
+widescreen: true
+#output: revealjs::revealjs_presentation
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=FALSE)
+library(revealjs)
+library(knitr)
+library(DT)
+library(tidyverse)
+library(readr)
+library(ggmap)
+library(dplyr)
+library(sf)
+library(nngeo)
+library(tidyr)
+library(usdata)
+library(leaflet)
+library(geosphere)
+library(sp)
+
+#DATA Load + Clean for map
+NO_GEOMETRY <- read.csv("final_Data_No_Geometry.csv")
+
+final_data <- NO_GEOMETRY
+# %>% create with control shift m
+
+final_data <- final_data %>%
+  mutate(dist = distHaversine(cbind(Generator_Longitude, Generator_Latitude), cbind(BUS_Longitude, BUS_Latitude)))
+#Convert to miles
+final_data<- final_data %>% 
+  mutate(dist =dist/1609.344)
+#Round to two decimal points
+final_data <- final_data %>% 
+  mutate(across(dist,round,2))
+#cleaning
+final_data <- final_data %>% 
+  mutate(bus_id=as.factor(bus_id))
+```
+
+
+
+## {data-background=1.png data-background-size=cover}
+
+## {data-background=2.png data-background-size=cover}
+
+## {data-background=3.png data-background-size=cover}
+
+## {data-background=4.png data-background-size=cover}
+
+## {data-background=5.png data-background-size=cover}
+
+## {data-background=6.png data-background-size=cover}
+
+## Deliverable
+```{r, fig.width=10, fig.height=5}
+#options(DT.fillContainer = T)
+#datatable(final_data, fillContainer = T)
+datatable(head(final_data, n = nrow(final_data)), options = list(pageLength = 5, scrollX = TRUE, scrollY = "300px") ) 
+```
+
+## Map of Generators 
+```{r, fig.width=10, fig.height=5}
+map_generators <- leaflet() %>% 
+  addTiles() %>% 
+  clearBounds() %>% 
+  addCircleMarkers(data = final_data, lng = ~Generator_Longitude, lat = ~Generator_Latitude, popup = ~`Generation.Interconnection.Number`, color='darkblue', stroke = F, fillOpacity = 1, radius = 6, group = 'Generators') %>% 
+  addLegend("bottomright", colors= "darkblue", labels="Generators", title="Legend", opacity = 1)
+map_generators
+```
+
+
+## Map of Substations
+```{r, fig.width=10, fig.height=5}
+map_substations <- leaflet() %>% 
+  addTiles() %>% 
+  clearBounds() %>% 
+  addCircleMarkers(data = final_data, lng = ~BUS_Longitude, lat = ~BUS_Latitude, popup = ~bus_id, color = 'green', stroke = F, fillOpacity = 1, radius = 6, group = 'Substations') %>% 
+  addLegend("bottomright", colors= "green", labels="Substations", title="Legend",opacity = 1)
+map_substations
+```
+
+## Map of Connections 
+```{r, fig.width=10, fig.height=5}
+final_data$dist_no_mi <- final_data$dist
+final_data$dist <- paste(final_data$dist, " Mi")
+map <- leaflet() %>% 
+  addTiles() %>% 
+  clearBounds() %>% 
+  addCircleMarkers(data = final_data, lng = ~Generator_Longitude, lat = ~Generator_Latitude, popup = ~`Generation.Interconnection.Number`, color='darkblue', stroke = F, fillOpacity = 1, radius = 6, group = 'Generators') %>% 
+  addCircleMarkers(data = final_data, lng = ~BUS_Longitude, lat = ~BUS_Latitude, popup = ~bus_id, color = 'green', stroke = F, fillOpacity = 1, radius = 6, group = 'Substations') %>%
+  addLayersControl(overlayGroups = c('Generators', 'Substations'))
+
+for(i in 1:nrow(final_data)){
+  map <- addPolylines(map, lat = as.numeric(final_data[i, c("Generator_Latitude", "BUS_Latitude")]), 
+                       lng = as.numeric(final_data[i, c("Generator_Longitude", "BUS_Longitude")]),
+                       color = 'red', group = 'Connecting Lines',
+                      popup = as.character(final_data[i, 'dist']))
+}
+map %>% addLayersControl(overlayGroups = c('Generators', 'Substations', 'Connecting Lines')) %>% 
+  addLegend("bottomright", colors= c('green', 'darkblue', 'red'), labels=c('Substation', 'Generator','Distance'),title="Legend", group = c('Substations', 'Generators','Connecting Lines'),opacity= 1)
+```
+
+## Map of Connections Andrew MO 
+```{r, fig.width=10, fig.height=5}
+map <- leaflet() %>% 
+  addTiles() %>% 
+  #clearBounds() %>% 
+  setView(lat = 39.96374, lng = -94.8106, zoom = 12) %>% 
+  addCircleMarkers(data = final_data, lng = ~Generator_Longitude, lat = ~Generator_Latitude, popup = ~`Generation.Interconnection.Number`, color='darkblue', stroke = F, fillOpacity = 1, radius = 6, group = 'Generators') %>% 
+  addCircleMarkers(data = final_data, lng = ~BUS_Longitude, lat = ~BUS_Latitude, popup = ~bus_id, color = 'green', stroke = F, fillOpacity = 1, radius = 6, group = 'Substations') %>%
+  addLayersControl(overlayGroups = c('Generators', 'Substations'))
+
+for(i in 1:nrow(final_data)){
+  map <- addPolylines(map, lat = as.numeric(final_data[i, c("Generator_Latitude", "BUS_Latitude")]), 
+                       lng = as.numeric(final_data[i, c("Generator_Longitude", "BUS_Longitude")]),
+                       color = 'red', group = 'Connecting Lines',
+                      popup = as.character(final_data[i, 'dist']))
+}
+map %>% addLayersControl(overlayGroups = c('Generators', 'Substations', 'Connecting Lines')) %>% 
+  addLegend("bottomright", colors= c('green', 'darkblue', 'red'), labels=c('Substation', 'Generator','Distance'),title="Legend", group = c('Substations', 'Generators','Connecting Lines'),opacity= 1)
+```
+
+## Histogram of Distances Between Proposed Generators and Substations
+```{r, fig.width=10, fig.height=5}
+final_data %>%
+  ggplot(aes(x = dist_no_mi))+
+  geom_histogram(bins = 50, fill = 'royalblue') +
+  scale_x_continuous(name = 'Haversine Distance (Miles)') +
+  scale_y_continuous(name = 'Count') 
+```
+
+## Map of Different Energy Types
+```{r, fig.width=10, fig.height=5}
+# create sub tables for each type of generations
+solar_gen <- final_data %>% 
+  filter(`Generation.Type` == "Solar" ) #138
+
+battery_gen <- final_data %>% 
+  filter(`Generation.Type` == "Battery/Storage" ) #79
+
+hybrid_gen <- final_data %>% 
+  filter(`Generation.Type` == "Hybrid") #40
+
+thermal_gen <- final_data %>% 
+  filter(`Generation.Type` == "Thermal") #13
+
+wind_gen <- final_data %>% 
+  filter(`Generation.Type` == "Wind") #46
+
+map_En_Type <- leaflet() %>% 
+  addTiles() %>% 
+  clearBounds() %>% 
+  addCircleMarkers(data = solar_gen, lng = ~Generator_Longitude, lat = ~Generator_Latitude, popup = ~`Generation.Interconnection.Number`, color='orange', stroke = F, fillOpacity = 1, radius = 6, group = 'Solar') %>% 
+  
+  addCircleMarkers(data = battery_gen, lng = ~Generator_Longitude, lat = ~Generator_Latitude, popup = ~`Generation.Interconnection.Number`, color='black', stroke = F, fillOpacity = 1, radius = 6, group = 'Battery') %>%
+  
+  addCircleMarkers(data = hybrid_gen, lng = ~Generator_Longitude, lat = ~Generator_Latitude, popup = ~`Generation.Interconnection.Number`, color='green', stroke = F, fillOpacity = 1, radius = 6, group = 'Hybrid') %>% 
+  
+  addCircleMarkers(data = thermal_gen, lng = ~Generator_Longitude, lat = ~Generator_Latitude, popup = ~`Generation.Interconnection.Number`, color='red', stroke = F, fillOpacity = 1, radius = 6, group = 'Thermal') %>% 
+  
+  addCircleMarkers(data = wind_gen, lng = ~Generator_Longitude, lat = ~Generator_Latitude, popup = ~`Generation.Interconnection.Number`, color='blue', stroke = F, fillOpacity = 1, radius = 6, group = 'Wind') %>% 
+  
+  addLayersControl(overlayGroups = c('Solar', 'Battery','Hybrid','Thermal','Wind')) %>% 
+
+  addLegend("bottomright", colors= c('orange', 'black', 'green', 'red', 'blue'), labels=c('Solar', 'Battery','Hybrid','Thermal', 'Wind'),title="Generation Type", group = c('Solar', 'Battery','Hybrid','Thermal','Wind'))
+
+map_En_Type
+```
+
+## Bar Chart of Different Energy Types
+```{r, fig.width=10, fig.height=5}
+plot <- final_data %>%
+  group_by(`Generation.Type`) %>%
+  count()
+
+ggplot(data=plot, aes(x=reorder(plot$`Generation.Type`, -plot$n), y=plot$n, fill=plot$`Generation.Type`)) +
+  geom_bar(stat="identity") +
+  theme(axis.text.x = element_text(angle=45, vjust=1, hjust=1)) +
+  ylab("Number of Generators") +
+  xlab("Generator Type") + 
+  labs(fill="Generator Type") +
+  geom_text(aes(label=plot$n), position=position_dodge(width=0.9), vjust=-0.25)
+```
+
+
+## {data-background=11.png data-background-size=cover}
+
+## {data-background=12.png data-background-size=cover}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
